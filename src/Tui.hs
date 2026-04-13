@@ -65,6 +65,7 @@ allMetrics =
 data AppState =
     AppState { _rawList :: [(InstrData, InstrData)]
              , _tabularList :: L.List () Row
+             , _selectedRow :: Row
              , _fn1 :: String
              , _fn2 :: String
              , _showRelativeMetrics :: Bool
@@ -141,7 +142,14 @@ appEvent (T.VtyEvent e) =
         V.EvKey (V.KChar 'H') [] -> toggleHideRows
         V.EvKey (V.KChar 'm') [] -> changeMetric True
         V.EvKey (V.KChar 'M') [] -> changeMetric False
-        ev -> T.zoom tabularList $ L.handleListEvent ev
+        ev -> do
+            T.zoom tabularList $ L.handleListEvent ev
+            tl <- use tabularList
+            case (L.listSelectedElement tl) of
+                Just (_, e) -> do
+                    selectedRow .= e
+                Nothing -> do
+                    return ()
 appEvent _ = return ()
 
 makeColumns as ws ts = Table.alignColumns (intersperse Table.AlignLeft as) (intersperse 1 ws) (intersperse (str " ") ts)
@@ -313,6 +321,7 @@ startTui fn1 fn2 is = void $ M.defaultMain theApp initialState
     rawInitialState =
       AppState { _rawList = is
                , _tabularList = L.list () (Vec.fromList initialRows) 1
+               , _selectedRow = head initialRows
                , _fn1=fn1
                , _fn2=fn2
                , _showRelativeMetrics=False
