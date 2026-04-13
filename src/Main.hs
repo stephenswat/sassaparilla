@@ -50,8 +50,8 @@ anonymizePredicateState Predicate { inverse=i, register=r } = do
             predicateRegisterIndex %= (+ 1)
             return Predicate{inverse=i, register=nr}
 
-anonymizeOperandState :: Operand -> State AnonymizeState Operand
-anonymizeOperandState Register { register=r } = do
+anonymizeOperandState :: Bool -> Operand -> State AnonymizeState Operand
+anonymizeOperandState _ Register { register=r } = do
     return Register { register=0 }
 {-
     st <- get
@@ -63,39 +63,39 @@ anonymizeOperandState Register { register=r } = do
             regularRegisterIndex %= (+ 1)
             return Register { register=nr }
 -}
-anonymizeOperandState PredicateRegister { } = do
+anonymizeOperandState _ PredicateRegister { } = do
     return PredicateRegister { register=0 }
-anonymizeOperandState UniformRegister { } = do
+anonymizeOperandState _ UniformRegister { } = do
     return UniformRegister { register=0 }
-anonymizeOperandState EffectiveAddress {address=addr, offset=offs} = do
-    newAddr <- anonymizeOperandState addr
-    newOffset <- forM offs anonymizeOperandState
+anonymizeOperandState _ EffectiveAddress {address=addr, offset=offs} = do
+    newAddr <- anonymizeOperandState False addr
+    newOffset <- forM offs (anonymizeOperandState False)
     return EffectiveAddress{address=newAddr, offset=newOffset}
-anonymizeOperandState Barrier{} = do
+anonymizeOperandState _ Barrier{} = do
     return Barrier{identifier=0}
-anonymizeOperandState Negative{operand=i} = do
-    newOp <- anonymizeOperandState i
+anonymizeOperandState b Negative{operand=i} = do
+    newOp <- anonymizeOperandState b i
     return Negative{operand=newOp}
-anonymizeOperandState Negate{operand=i} = do
-    newOp <- anonymizeOperandState i
+anonymizeOperandState b Negate{operand=i} = do
+    newOp <- anonymizeOperandState b i
     return Negate{operand=newOp}
-anonymizeOperandState Tilde{operand=i} = do
-    newOp <- anonymizeOperandState i
+anonymizeOperandState b Tilde{operand=i} = do
+    newOp <- anonymizeOperandState b i
     return Tilde{operand=newOp}
-anonymizeOperandState Absolute{operand=i} = do
-    newOp <- anonymizeOperandState i
+anonymizeOperandState b Absolute{operand=i} = do
+    newOp <- anonymizeOperandState b i
     return Absolute{operand=newOp}
-anonymizeOperandState TextAddress{} = do
+anonymizeOperandState _ TextAddress{} = do
     return TextAddress{label=""}
-anonymizeOperandState ConstantMemory {arg1=i1, arg2=i2} = do
-    newOp1 <- anonymizeOperandState i1
-    newOp2 <- anonymizeOperandState i2
+anonymizeOperandState _ ConstantMemory {arg1=i1, arg2=i2} = do
+    newOp1 <- anonymizeOperandState False i1
+    newOp2 <- anonymizeOperandState False i2
     return ConstantMemory {arg1=newOp1, arg2=newOp2}
-anonymizeOperandState Immediate { } = do
-    return Immediate { value=0 }
-anonymizeOperandState FloatImmediate { } = do
+anonymizeOperandState b Immediate { value=v } = do
+    return Immediate { value=if b then 0 else v }
+anonymizeOperandState _ FloatImmediate { } = do
     return FloatImmediate {fvalue=0}
-anonymizeOperandState o = do
+anonymizeOperandState _ o = do
     return o
 
 anonymizeInstructionState :: Instruction -> State AnonymizeState Instruction
@@ -105,7 +105,7 @@ anonymizeInstructionState Instruction {predicate = pdf, op=opp, operands=ops} = 
             npdf <- anonymizePredicateState x
             return (Just npdf)
         Nothing -> return Nothing
-    newOperands <- forM ops anonymizeOperandState
+    newOperands <- forM ops (anonymizeOperandState True)
     return Instruction {predicate=newPredicate, op=opp, operands=newOperands}
 
 anonymizeInstruction :: Instruction -> Instruction
