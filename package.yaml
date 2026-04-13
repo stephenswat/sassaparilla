@@ -15,6 +15,7 @@ dependencies:
   - microlens
   - microlens-mtl
   - microlens-th
+  - mtl
   - vty
   - vector
 

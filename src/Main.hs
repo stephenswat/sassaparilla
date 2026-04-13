@@ -1,9 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
+import Lens.Micro ((^.))
+import Lens.Micro.TH
+import Lens.Micro.Mtl ((%=), (.=), use)
 import System.Environment
 import System.Exit (exitFailure)
 import System.IO
@@ -13,42 +17,117 @@ import Text.Parsec (ParseError)
 import Data.Either (partitionEithers)
 import Data.Algorithm.Diff
 import Control.Monad
-import Data.Map (Map, fromList, lookup)
+import Data.Map (Map, fromList, lookup, empty, insert)
 import Data.Function (on)
 import Data.Maybe (fromJust)
+import Control.Monad.State.Lazy (State, evalState, get, modify)
 
 import Tui (startTui)
 import Sass
 import Parse
 
-anonymizePredicate :: Predicate -> Predicate
-anonymizePredicate Predicate { inverse=i } = Predicate{inverse=i, register=0}
+data AnonymizeState = AnonymizeState
+    { _regularRegisterMap :: Map Integer Integer
+    , _regularRegisterIndex :: Integer
+    , _predicateRegisterMap :: Map Integer Integer
+    , _predicateRegisterIndex :: Integer
+    , _uniformRegisterMap :: Map Integer Integer
+    , _uniformRegisterIndex :: Integer
+    , _barrierMap :: Map Integer Integer
+    , _barrierIndex :: Integer
+    }
 
-anonymizeOperand :: Operand -> Operand
-anonymizeOperand Register { } = Register { register=0 }
-anonymizeOperand PredicateRegister { } = PredicateRegister { register=0 }
-anonymizeOperand UniformRegister { } = UniformRegister { register=0 }
-anonymizeOperand EffectiveAddress {address=addr, offset=offs} = EffectiveAddress{address=anonymizeOperand addr, offset=(fmap anonymizeOperand offs)}
-anonymizeOperand Barrier{} = Barrier{identifier=0}
-anonymizeOperand Negative{operand=i} = Negative{operand=anonymizeOperand i}
-anonymizeOperand Negate{operand=i} = Negate{operand=anonymizeOperand i}
-anonymizeOperand Tilde{operand=i} = Tilde{operand=anonymizeOperand i}
-anonymizeOperand Absolute{operand=i} = Absolute{operand=anonymizeOperand i}
-anonymizeOperand TextAddress{} = TextAddress{label=""}
-anonymizeOperand ConstantMemory {arg1=i1, arg2=i2} = ConstantMemory {arg1= anonymizeOperand i1, arg2= anonymizeOperand i2}
-anonymizeOperand Immediate { } = Immediate { value=0 }
-anonymizeOperand FloatImmediate { } = FloatImmediate {fvalue=0}
-anonymizeOperand o = o
+makeLenses ''AnonymizeState
+
+anonymizePredicateState :: Predicate -> State AnonymizeState Predicate
+anonymizePredicateState Predicate { inverse=i, register=r } = do
+    st <- get
+    case Data.Map.lookup r (st^.predicateRegisterMap) of
+        Just x -> return Predicate{inverse=i, register=x}
+        Nothing -> do
+            let nr = st^.predicateRegisterIndex
+            predicateRegisterMap %= (insert r nr)
+            predicateRegisterIndex %= (+ 1)
+            return Predicate{inverse=i, register=nr}
+
+anonymizeOperandState :: Operand -> State AnonymizeState Operand
+anonymizeOperandState Register { register=r } = do
+    return Register { register=0 }
+{-
+    st <- get
+    case Data.Map.lookup r (st^.regularRegisterMap) of
+        Just x -> return Register{register=x}
+        Nothing -> do
+            let nr = st^.regularRegisterIndex
+            regularRegisterMap %= (insert r nr)
+            regularRegisterIndex %= (+ 1)
+            return Register { register=nr }
+-}
+anonymizeOperandState PredicateRegister { } = do
+    return PredicateRegister { register=0 }
+anonymizeOperandState UniformRegister { } = do
+    return UniformRegister { register=0 }
+anonymizeOperandState EffectiveAddress {address=addr, offset=offs} = do
+    newAddr <- anonymizeOperandState addr
+    newOffset <- forM offs anonymizeOperandState
+    return EffectiveAddress{address=newAddr, offset=newOffset}
+anonymizeOperandState Barrier{} = do
+    return Barrier{identifier=0}
+anonymizeOperandState Negative{operand=i} = do
+    newOp <- anonymizeOperandState i
+    return Negative{operand=newOp}
+anonymizeOperandState Negate{operand=i} = do
+    newOp <- anonymizeOperandState i
+    return Negate{operand=newOp}
+anonymizeOperandState Tilde{operand=i} = do
+    newOp <- anonymizeOperandState i
+    return Tilde{operand=newOp}
+anonymizeOperandState Absolute{operand=i} = do
+    newOp <- anonymizeOperandState i
+    return Absolute{operand=newOp}
+anonymizeOperandState TextAddress{} = do
+    return TextAddress{label=""}
+anonymizeOperandState ConstantMemory {arg1=i1, arg2=i2} = do
+    newOp1 <- anonymizeOperandState i1
+    newOp2 <- anonymizeOperandState i2
+    return ConstantMemory {arg1=newOp1, arg2=newOp2}
+anonymizeOperandState Immediate { } = do
+    return Immediate { value=0 }
+anonymizeOperandState FloatImmediate { } = do
+    return FloatImmediate {fvalue=0}
+anonymizeOperandState o = do
+    return o
+
+anonymizeInstructionState :: Instruction -> State AnonymizeState Instruction
+anonymizeInstructionState Instruction {predicate = pdf, op=opp, operands=ops} = do
+    newPredicate <- case pdf of
+        Just x -> do
+            npdf <- anonymizePredicateState x
+            return (Just npdf)
+        Nothing -> return Nothing
+    newOperands <- forM ops anonymizeOperandState
+    return Instruction {predicate=newPredicate, op=opp, operands=newOperands}
 
 anonymizeInstruction :: Instruction -> Instruction
-anonymizeInstruction Instruction {predicate = pdf, op=opp, operands=ops} = 
-  Instruction {predicate = (fmap anonymizePredicate $ pdf), op=opp, operands=map anonymizeOperand ops}
+anonymizeInstruction i = evalState (anonymizeInstructionState i) initialState
+    where
+        initialState :: AnonymizeState
+        initialState = AnonymizeState
+            { _regularRegisterMap = Data.Map.empty
+            , _regularRegisterIndex = 0
+            , _predicateRegisterMap = Data.Map.empty
+            , _predicateRegisterIndex = 0
+            , _uniformRegisterMap = Data.Map.empty
+            , _uniformRegisterIndex = 0
+            , _barrierMap = Data.Map.empty
+            , _barrierIndex = 0
+            }
 
 
 feed :: (ByteString -> Data.Csv.Incremental.Parser [String]) -> Handle -> IO (Data.Csv.Incremental.Parser [String])
 feed k csvFile = do
   hIsEOF csvFile >>= \case
-    True  -> return $ k empty
+    True  -> return $ k Data.ByteString.empty
     False -> do
       x <- hGetSome csvFile 4096
       k <$> (return x)
