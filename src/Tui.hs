@@ -133,6 +133,8 @@ appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) =
     case e of
         V.EvKey V.KEsc [] -> M.halt
+        V.EvKey (V.KChar 'q') [] -> M.halt
+        V.EvKey (V.KChar 'Q') [] -> M.halt
         V.EvKey (V.KChar 'r') [] -> toggleRelativeMetrics
         V.EvKey (V.KChar 'R') [] -> toggleRelativeMetrics
         V.EvKey (V.KChar 'h') [] -> toggleHideRows
