@@ -24,3 +24,5 @@ exported. We can then run Sassaparilla:
 ```
 stack run prof1.csv prof2.csv
 ```
+
+![A screenshot](docs/readme_screenshot.png)
