@@ -1,0 +1,29 @@
+name: sassaparilla
+version: 0.0.1
+author: "Stephen Nicholas Swatman"
+maintainer: "stephen.nicholas.swatman@cern.ch"
+
+dependencies:
+  - base >= 4.16 && < 5
+  - cassava
+  - containers
+  - bytestring
+  - Diff
+  - parsec
+  - text
+  - brick
+  - microlens
+  - microlens-mtl
+  - microlens-th
+  - vty
+  - vector
+
+executables:
+  run:
+    main:                Main.hs
+    source-dirs:         src
+    ghc-options:
+      - -Wall
+      - -Wcompat
+      - -O3
+      - -threaded
