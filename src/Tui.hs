@@ -30,7 +30,7 @@ import Data.Set (Set, empty, insert, member)
 import Control.Monad.State (State, execState, modify)
 import Control.Monad (forM_)
 import Numeric (showHex)
-import Data.List (intersperse, null)
+import Data.List (intersperse, null, unsnoc)
 import Brick.Types
   ( Widget
   )
@@ -304,7 +304,12 @@ appEvent (T.VtyEvent e) =
     case e of
         V.EvKey V.KEsc [] -> M.halt
         V.EvKey V.KBS [] -> do
-            gotoBuffer %= init
+            b <- use gotoBuffer
+            case unsnoc b of
+                Just (x, _) -> do
+                    gotoBuffer .= x
+                Nothing -> do
+                    gotoBuffer .= []
         V.EvKey (V.KChar 'q') [] -> M.halt
         V.EvKey (V.KChar 'Q') [] -> M.halt
         V.EvKey (V.KChar 'r') [] -> do
