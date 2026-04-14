@@ -398,7 +398,7 @@ listDrawElement _ _ sel (HiddenLinesRow lb le rb re) =
     hBox $
     maybeSelect $
     makeColumns [Table.AlignCenter] [totalWidth + 2 * (length perSourceColumnWidths)] 
-        [str ("Hiding " ++ (show (le - lb)) ++ " rows: " ++ (show lb) ++ "-" ++ (show le) ++ " and "  ++ (show rb) ++ "-" ++ (show re))]
+        [str ("Hiding " ++ (show (le - lb + 1)) ++ " rows: " ++ (show lb) ++ "-" ++ (show le) ++ " and "  ++ (show rb) ++ "-" ++ (show re))]
     where
         maybeSelect es = selectCell <$> zip [(0 :: Integer)..] es
         selectCell (_, w) = case (sel) of
@@ -500,7 +500,9 @@ compressRows m q = go True q Data.Sequence.empty
                 (rb, re) = toSubrange frs
         go f [] c
             | Data.Sequence.null c = []
-            | otherwise = (map Left . toList $ cpre) ++ (if (length cpost > 0) then [Right (toRange cpost)] else [])
+            | otherwise =
+                (map Left . toList $ cpre) ++ 
+                (if (length cpost > 1) then [Right (toRange cpost)] else (map Left . toList $ cpost))
             where
                 (cpre, cpost) = Data.Sequence.splitAt (if f then 0 else fromInteger m) c
         go f (x:xs) c
@@ -509,7 +511,12 @@ compressRows m q = go True q Data.Sequence.empty
                 True -> (Left x):(go False xs Data.Sequence.empty)
             | otherwise = case rowToBeKept x of
                 False -> go f xs (c |> x)
-                True -> (map Left . toList $ cpre) ++ (if midLen > 0 then [Right . toRange $ cmid] else [])++(map Left . toList $ cpost)++[Left x]++(go False xs Data.Sequence.empty)
+                True -> 
+                    (map Left . toList $ cpre) ++ 
+                    (if midLen > 1 then [Right . toRange $ cmid] else (map Left . toList $ cmid)) ++
+                    (map Left . toList $ cpost) ++
+                    [Left x] ++
+                    (go False xs Data.Sequence.empty)
             where
                 (cbuff, cpost) = Data.Sequence.splitAt ((\i -> i - (fromInteger m)) . length $ c) c
                 (cpre, cmid) = Data.Sequence.splitAt (if f then 0 else fromInteger m) cbuff
