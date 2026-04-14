@@ -109,7 +109,7 @@ data AppState =
 
 
 extractOperandsFromPredicateState :: Predicate -> State (Set Operand) ()
-extractOperandsFromPredicateState Predicate { inverse=inv, register=reg } = do
+extractOperandsFromPredicateState Predicate { register=reg } = do
     modify (insert (PredicateRegister { register=reg }))
 
 extractOperandsFromOperandState :: Operand -> State (Set Operand) ()
@@ -144,7 +144,7 @@ extractOperandsFromOperandState o@ConstantMemory {arg1=i1, arg2=i2} = do
 extractOperandsFromOperandState _ = return ()
 
 extractOperandsFromInstructionState :: Instruction -> State (Set Operand) ()
-extractOperandsFromInstructionState Instruction { predicate=pdc, op=o, operands=opnds } = do
+extractOperandsFromInstructionState Instruction { predicate=pdc, operands=opnds } = do
     case pdc of
         Just x -> extractOperandsFromPredicateState x 
         Nothing -> return ()
@@ -281,7 +281,7 @@ toggleHideRows = do
             Just (_, (InstrRow (Just x) _)) -> (False, fromInteger . fst $ x)
             Just (_, (InstrRow _ (Just x) )) -> (True, fromInteger . fst $ x)
             Just (_, (HiddenLinesRow lb _ _ _)) -> (False, lb)
-            Nothing -> (False, 0)
+            _ -> (False, 0)
     newHideRows <- use hideRows
     theRawList <- use rawList
     tabularList .= (L.list () (Vec.fromList (map renderRow . (if newHideRows then (compressRows 2) else noCompressRows) $ theRawList)) 1)
@@ -349,8 +349,8 @@ appEvent (T.VtyEvent e) =
             T.zoom tabularList $ L.handleListEvent ev
             tl <- use tabularList
             case (L.listSelectedElement tl) of
-                Just (_, e) -> do
-                    selectedRow .= e
+                Just (_, q) -> do
+                    selectedRow .= q
                 Nothing -> do
                     return ())
 appEvent _ = return ()
@@ -358,14 +358,14 @@ appEvent _ = return ()
 makeColumns as ws ts = Table.alignColumns (intersperse Table.AlignLeft as) (intersperse 1 ws) (intersperse (str " ") ts)
 
 listDrawElement :: (Set Operand, Set Operand) -> AppState -> Bool -> Row -> Widget ()
-listDrawElement _ st _ (TextRow a b c d e f) =
+listDrawElement _ _ _ (TextRow a b c d e f) =
     hLimit totalWidth $
     hBox $
     makeColumns (columnHeaderAlignments ++ columnHeaderAlignments) (perSourceColumnWidths ++ perSourceColumnWidths) [str a, str b, str c, str d, str e, str f]
 listDrawElement (cl, cr) st sel (InstrRow a b) =
     let ws = [str (renderLineNr a), renderInstr ucl a, str (renderProfileData (usedMetrics !! (st^.metricIndex)) (st^.totalMetricValue1) (st^.showRelativeMetrics) a), str (renderLineNr b), renderInstr ucr b, str (renderProfileData (usedMetrics !! (st^.metricIndex)) (st^.totalMetricValue1) (st^.showRelativeMetrics) b)]
         (ucl, ucr) = if sel then (Data.Set.empty, Data.Set.empty) else (cl, cr)
-        maybeSelect es = selectCell <$> zip [0..] es
+        maybeSelect es = selectCell <$> zip [(0 :: Integer)..] es
         selectCell (i, w) = case (sel, isNothing a, isNothing b, i) of
           (True, False, False, _) -> withDefAttr selectedCellAttr w
           (True, True, True, _) -> withDefAttr selectedCellAttr w
@@ -383,28 +383,28 @@ listDrawElement (cl, cr) st sel (InstrRow a b) =
        hBox $
        maybeSelect $
        makeColumns (columnAlignments ++ columnAlignments) (perSourceColumnWidths ++ perSourceColumnWidths) ws
-listDrawElement _ st sel (FullWidthText s) =
+listDrawElement _ _ sel (FullWidthText s) =
     hLimit totalWidth $
     hBox $
     maybeSelect $
     makeColumns [Table.AlignCenter] [totalWidth + 2 * (length perSourceColumnWidths)] [str s]
     where
-        maybeSelect es = selectCell <$> zip [0..] es
+        maybeSelect es = selectCell <$> zip [(0 :: Integer)..] es
         selectCell (_, w) = case (sel) of
             True -> withDefAttr annotationSelectedCellAttr w
             False -> withDefAttr annotationCellAttr w
-listDrawElement _ st sel (HiddenLinesRow lb le rb re) =
+listDrawElement _ _ sel (HiddenLinesRow lb le rb re) =
     hLimit totalWidth $
     hBox $
     maybeSelect $
     makeColumns [Table.AlignCenter] [totalWidth + 2 * (length perSourceColumnWidths)] 
         [str ("Hiding " ++ (show (le - lb)) ++ " rows: " ++ (show lb) ++ "-" ++ (show le) ++ " and "  ++ (show rb) ++ "-" ++ (show re))]
     where
-        maybeSelect es = selectCell <$> zip [0..] es
+        maybeSelect es = selectCell <$> zip [(0 :: Integer)..] es
         selectCell (_, w) = case (sel) of
             True -> withDefAttr annotationSelectedCellAttr w
             False -> withDefAttr annotationCellAttr w
-listDrawElement _ st _ (HalfWidthText a b) =
+listDrawElement _ _ _ (HalfWidthText a b) =
     hLimit totalWidth $
     hBox $
     makeColumns [Table.AlignLeft, Table.AlignLeft] [l, l] [str a, str b]
@@ -478,7 +478,6 @@ rowToBeKept (Just a, Just b) = frac <= 0.95 || frac >= 1.05
 rowToBeKept (Just a, Nothing) = (getInstExec a) > 0
 rowToBeKept (Nothing, Just a) = (getInstExec a) > 0
 rowToBeKept (Nothing, Nothing) = error "Invalid state"
-rowToBeKept _ = True
 
 compressRows :: Integer -> [(Maybe RowData, Maybe RowData)] -> [Either (Maybe RowData, Maybe RowData) (Int, Int, Int, Int)]
 compressRows m q = go True q Data.Sequence.empty
@@ -512,7 +511,7 @@ compressRows m q = go True q Data.Sequence.empty
                 False -> go f xs (c |> x)
                 True -> (map Left . toList $ cpre) ++ (if midLen > 0 then [Right . toRange $ cmid] else [])++(map Left . toList $ cpost)++[Left x]++(go False xs Data.Sequence.empty)
             where
-                (cbuff, cpost) = Data.Sequence.splitAt ((\x -> x - (fromInteger m)) . length $ c) c
+                (cbuff, cpost) = Data.Sequence.splitAt ((\i -> i - (fromInteger m)) . length $ c) c
                 (cpre, cmid) = Data.Sequence.splitAt (if f then 0 else fromInteger m) cbuff
                 midLen = toInteger . length $ cmid
 
@@ -522,7 +521,7 @@ noCompressRows = map Left
 
 
 startTui :: String -> String -> [(Maybe RowData, Maybe RowData)] -> IO ()
-startTui fn1 fn2 is = void $ M.defaultMain theApp initialState
+startTui f1 f2 is = void $ M.defaultMain theApp initialState
   where
     theApp = M.App { M.appDraw = drawUI
             , M.appChooseCursor = M.showFirstCursor
@@ -536,8 +535,8 @@ startTui fn1 fn2 is = void $ M.defaultMain theApp initialState
       AppState { _rawList = is
                , _tabularList = L.list () (Vec.fromList initialRows) 1
                , _selectedRow = head initialRows
-               , _fn1=fn1
-               , _fn2=fn2
+               , _fn1=f1
+               , _fn2=f2
                , _showRelativeMetrics=False
                , _highlightOperands=True
                , _hideRows=True
