@@ -23,7 +23,7 @@ import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
 import qualified Brick.Widgets.Table as Table
 import qualified Brick.AttrMap as A
-import Data.Sequence (Seq(..), empty, null, singleton, (|>), splitAt)
+import Data.Sequence (Seq(..), empty, null, singleton, (|>), splitAt, filter)
 import Data.Foldable (toList)
 import qualified Data.Vector as Vec
 import Data.Set (Set, empty, insert, member)
@@ -34,6 +34,7 @@ import Data.List (intersperse, null)
 import Brick.Types
   ( Widget
   )
+import Data.Functor (unzip)
 import Data.Char (isDigit)
 import Brick.Widgets.Core
   ( (<=>)
@@ -471,24 +472,28 @@ rowToBeKept (Just a, Just b) = frac <= 0.95 || frac >= 1.05
         frac = ((fromInteger iExA) :: Float) / ((fromInteger iExB) :: Float)
 rowToBeKept (Just a, Nothing) = (getInstExec a) > 0
 rowToBeKept (Nothing, Just a) = (getInstExec a) > 0
+rowToBeKept (Nothing, Nothing) = error "Invalid state"
 rowToBeKept _ = True
 
 compressRows :: Integer -> [(Maybe RowData, Maybe RowData)] -> [Either (Maybe RowData, Maybe RowData) (Int, Int, Int, Int)]
 compressRows m q = go True q Data.Sequence.empty
     where
-        toRange (Empty) = (0, 0, 0, 0)
-        toRange (h:<|(_:|>t)) =
-            ( fromInteger . fst . fromJust . fst $ h
-            , fromInteger . fst . fromJust . fst $ t
-            , fromInteger . fst . fromJust . snd $ h
-            , fromInteger . fst . fromJust . snd $ t
+        toSubrange (Empty) = (0, 0)
+        toSubrange (h:<|Empty) = 
+            ( fromInteger . fst . fromJust $ h
+            , fromInteger . fst . fromJust $ h
             )
-        toRange (h:<|Empty) =
-            ( fromInteger . fst . fromJust . fst $ h
-            , fromInteger . fst . fromJust . fst $ h
-            , fromInteger . fst . fromJust . snd $ h
-            , fromInteger . fst . fromJust . snd $ h
+        toSubrange (h:<|(_:|>t)) =
+            ( fromInteger . fst . fromJust $ h
+            , fromInteger . fst . fromJust $ t
             )
+        toRange xs = (lb, le, rb, re)
+            where
+                (ls, rs) = Data.Functor.unzip xs
+                fls = Data.Sequence.filter isJust ls
+                frs = Data.Sequence.filter isJust rs
+                (lb, le) = toSubrange fls
+                (rb, re) = toSubrange frs
         go f [] c
             | Data.Sequence.null c = []
             | otherwise = (map Left . toList $ cpre) ++ (if (length cpost > 0) then [Right (toRange cpost)] else [])
