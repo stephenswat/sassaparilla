@@ -28,3 +28,4 @@ executables:
       - -Wcompat
       - -O3
       - -threaded
+      - -with-rtsopts=--nonmoving-gc

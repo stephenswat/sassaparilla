@@ -1,4 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE Strict #-}
+{-# LANGUAGE MagicHash #-}
 
 module Sass (Operand(..), Instruction(..), Predicate(..)) where
 
@@ -8,26 +10,26 @@ import Numeric (showHex)
 
 data Predicate = Predicate
   { inverse :: Bool
-  , register :: Integer
+  , register :: Int
   } deriving (Eq)
 
 data Operand
   = Register
-  { register :: Integer
+  { register :: Int
   } 
   | PredicateRegister
-  { register :: Integer
+  { register :: Int
   }
   | TruePredicate
   | FalsePredicate
   | UniformTruePredicate
   | UniformFalsePredicate
   | UniformRegister
-  { register :: Integer
+  { register :: Int
   }
   | UniformZeroRegister
   | Barrier
-  { identifier :: Integer
+  { identifier :: Int
   }
   | ZeroRegister
   | SpecialRegister
@@ -38,7 +40,7 @@ data Operand
   , offset :: Maybe Operand
   }
   | Immediate
-  { value :: Integer
+  { value :: Int
   }
   | FloatImmediate
   { fvalue :: Float
@@ -64,14 +66,13 @@ data Operand
   { arg1 :: Operand
   , arg2 :: Operand
   }
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 data Instruction = Instruction 
   { predicate :: Maybe Predicate
   , op :: String
   , operands :: [Operand]
   } deriving (Eq)
-
 
 instance Show Predicate where
   show Predicate { inverse=inv, register=reg } = "@" ++ (if inv then "!" else "") ++ "P" ++ (show reg)

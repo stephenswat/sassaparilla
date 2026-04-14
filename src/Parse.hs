@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE Strict #-}
 
 module Parse (parseInstruction) where
 
@@ -82,7 +83,7 @@ hexStringParser = do
 immediateParser :: Parsec String () Operand
 immediateParser = do
   val <- hexStringParser
-  return Immediate {value=val}
+  return Immediate {value=fromInteger val}
 
 floatImmediateParser :: Parsec String () Operand
 floatImmediateParser = do
