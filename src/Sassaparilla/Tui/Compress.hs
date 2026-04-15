@@ -1,6 +1,6 @@
-module Tui.Compress (compressRows, noCompressRows) where
+module Sassaparilla.Tui.Compress (compressRows, noCompressRows) where
 
-import Tui.Types (RowData)
+import Sassaparilla.Tui.Types (RowData)
 import Data.Maybe (isJust, fromJust)
 import Data.Sequence (Seq(..), (|>), empty, null, filter, singleton, splitAt)
 import Data.Functor (unzip)

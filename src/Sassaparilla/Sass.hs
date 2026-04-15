@@ -2,7 +2,7 @@
 {-# LANGUAGE Strict #-}
 {-# LANGUAGE MagicHash #-}
 
-module Sass (Operand(..), Instruction(..), Predicate(..)) where
+module Sassaparilla.Sass (Operand(..), Instruction(..), Predicate(..)) where
 
 import Data.List (intercalate)
 import Data.Maybe (isJust, fromJust)

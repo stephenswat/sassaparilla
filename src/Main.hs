@@ -16,12 +16,12 @@ import Data.Maybe (fromJust)
 import Data.Bifunctor (bimap)
 import Data.Tuple.Extra (both)
 
-import Tui.Core (startTui)
-import Sass
-import Utils
-import Parse
-import Algorithms.Anonymize (anonymizeInstruction)
-import CsvIo (readLines)
+import Sassaparilla.Tui.Core (startTui)
+import Sassaparilla.Sass
+import Sassaparilla.Utils
+import Sassaparilla.Parse
+import Sassaparilla.Algorithms.Anonymize (anonymizeInstruction)
+import Sassaparilla.CsvIo (readLines)
 
 filterParseResult :: Either ParseError Instruction -> IO Instruction
 filterParseResult (Left a) = do

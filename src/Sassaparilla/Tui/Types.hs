@@ -1,7 +1,7 @@
-module Tui.Types (RowData, InstrData, Row(..)) where
+module Sassaparilla.Tui.Types (RowData, InstrData, Row(..)) where
 
 import Data.Map (Map)
-import Sass (Instruction)
+import Sassaparilla.Sass (Instruction)
 
 type RowData = (Integer, (Instruction, Map String String))
 type InstrData = Maybe RowData

@@ -3,7 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE Strict #-}
 
-module Tui.Core (startTui) where
+module Sassaparilla.Tui.Core (startTui) where
 
 import Lens.Micro ((^.))
 import Lens.Micro.TH
@@ -41,13 +41,13 @@ import Brick.Widgets.Core
   )
 import Brick.Widgets.Border (hBorder)
 import Data.Map (lookup)
-import Utils (usedMetrics)
 
-import Sass
-import Tui.Attributes
-import Tui.Types (RowData, InstrData, Row(..))
-import Tui.Compress (compressRows, noCompressRows)
-import Algorithms.ExtractOperands (extractOperandsFromInstruction)
+import Sassaparilla.Utils (usedMetrics)
+import Sassaparilla.Sass
+import Sassaparilla.Tui.Attributes
+import Sassaparilla.Tui.Types (RowData, InstrData, Row(..))
+import Sassaparilla.Tui.Compress (compressRows, noCompressRows)
+import Sassaparilla.Algorithms.ExtractOperands (extractOperandsFromInstruction)
 
 
 

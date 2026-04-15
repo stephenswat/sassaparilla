@@ -1,12 +1,12 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Algorithms.ExtractOperands (extractOperandsFromInstruction) where
+module Sassaparilla.Algorithms.ExtractOperands (extractOperandsFromInstruction) where
 
 import Data.Set (Set, insert, empty)
 import Control.Monad.State (State, execState, modify)
 import Control.Monad (forM_)
 
-import Sass
+import Sassaparilla.Sass
 
 extractOperandsFromPredicateState :: Predicate -> State (Set Operand) ()
 extractOperandsFromPredicateState Predicate { register=reg } = do

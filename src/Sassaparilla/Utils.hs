@@ -1,4 +1,4 @@
-module Utils where
+module Sassaparilla.Utils where
 
 usedMetrics :: [String]
 usedMetrics = 

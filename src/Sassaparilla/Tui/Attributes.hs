@@ -1,4 +1,4 @@
-module Tui.Attributes where
+module Sassaparilla.Tui.Attributes where
 
 import qualified Brick.AttrMap as A
 import qualified Brick.Widgets.List as L (listAttr)

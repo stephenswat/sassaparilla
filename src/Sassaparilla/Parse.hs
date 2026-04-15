@@ -1,7 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE Strict #-}
 
-module Parse (parseInstruction) where
+module Sassaparilla.Parse (parseInstruction) where
 
 import Data.Text (pack, null)
 import Data.Text.Read (hexadecimal)
@@ -10,7 +10,7 @@ import Text.Parsec
     ( Parsec, ParseError, choice, try, parse, letter, many, many1, eof, char
     , string, sepBy1, digit, optionMaybe, (<|>)
     )
-import Sass (Operand(..), Instruction(..), Predicate(..))
+import Sassaparilla.Sass (Operand(..), Instruction(..), Predicate(..))
 
 parseInstruction :: String -> Either ParseError Instruction
 parseInstruction x = parse instructionParser x x

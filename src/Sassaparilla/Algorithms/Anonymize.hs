@@ -1,7 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Algorithms.Anonymize (anonymizeInstruction) where
+module Sassaparilla.Algorithms.Anonymize (anonymizeInstruction) where
 
 import Control.Monad (forM)
 import Control.Monad.State (State, evalState, get)
@@ -10,7 +10,7 @@ import Lens.Micro.TH (makeLenses)
 import Lens.Micro ((^.))
 import Lens.Micro.Mtl ((%=))
 
-import Sass (Predicate(..), Instruction(..), Operand(..))
+import Sassaparilla.Sass (Predicate(..), Instruction(..), Operand(..))
 
 data AnonymizeState = AnonymizeState
     { _regularRegisterMap :: Map Int Int

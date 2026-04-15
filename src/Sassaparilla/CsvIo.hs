@@ -1,4 +1,4 @@
-module CsvIo (readLines) where
+module Sassaparilla.CsvIo (readLines) where
 
 import Data.ByteString.Lazy (readFile)
 import Data.Csv (decode, HasHeader(..))
