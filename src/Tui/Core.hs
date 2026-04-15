@@ -3,7 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE Strict #-}
 
-module Tui (startTui) where
+module Tui.Core (startTui) where
 
 import Lens.Micro ((^.))
 import Lens.Micro.TH
@@ -22,19 +22,13 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
 import qualified Brick.Widgets.Table as Table
-import qualified Brick.AttrMap as A
-import Data.Sequence (Seq(..), empty, null, singleton, (|>), splitAt, filter)
-import Data.Foldable (toList)
 import qualified Data.Vector as Vec
-import Data.Set (Set, empty, insert, member)
-import Control.Monad.State (State, execState, modify)
-import Control.Monad (forM_)
+import Data.Set (Set, empty, member)
 import Numeric (showHex)
 import Data.List (intersperse, null, unsnoc)
 import Brick.Types
   ( Widget
   )
-import Data.Functor (unzip)
 import Data.Char (isDigit)
 import Brick.Widgets.Core
   ( (<=>)
@@ -46,50 +40,16 @@ import Brick.Widgets.Core
   , withAttr
   )
 import Brick.Widgets.Border (hBorder)
-import Brick.Util (on)
-import Data.Map (Map, lookup)
+import Data.Map (lookup)
 import Utils (usedMetrics)
 
 import Sass
-
-type RowData = (Integer, (Instruction, Map String String))
-type InstrData = Maybe RowData
-
-data Row 
-  = TextRow String String String String String String
-  | InstrRow InstrData InstrData
-  | HalfWidthText String String
-  | HiddenLinesRow Int Int Int Int
-  | FullWidthText String
+import Tui.Attributes
+import Tui.Types (RowData, InstrData, Row(..))
+import Tui.Compress (compressRows, noCompressRows)
+import Algorithms.ExtractOperands (extractOperandsFromInstruction)
 
 
-
-selectedCellAttr :: A.AttrName
-selectedCellAttr = A.attrName "selectedCell"
-
-missingCellAttr :: A.AttrName
-missingCellAttr = A.attrName "missingCell"
-
-loneCellAttr :: A.AttrName
-loneCellAttr = A.attrName "loneCell"
-
-missingSelectedCellAttr :: A.AttrName
-missingSelectedCellAttr = A.attrName "missingSelectedCell"
-
-loneSelectedCellAttr :: A.AttrName
-loneSelectedCellAttr = A.attrName "loneSelectedCell"
-
-annotationCellAttr :: A.AttrName
-annotationCellAttr = A.attrName "annotationCell"
-
-annotationSelectedCellAttr :: A.AttrName
-annotationSelectedCellAttr = A.attrName "annotationSelectedCell"
-
-correlatedOperandAttr :: A.AttrName
-correlatedOperandAttr = A.attrName "correlatedOperand"
-
-correlatedSelectedOperandAttr :: A.AttrName
-correlatedSelectedOperandAttr = A.attrName "correlatedSelectedOperand"
 
 
 data AppState =
@@ -108,50 +68,6 @@ data AppState =
              }
 
 
-extractOperandsFromPredicateState :: Predicate -> State (Set Operand) ()
-extractOperandsFromPredicateState Predicate { register=reg } = do
-    modify (insert (PredicateRegister { register=reg }))
-
-extractOperandsFromOperandState :: Operand -> State (Set Operand) ()
-extractOperandsFromOperandState o@Register {} = do
-    modify (insert o)
-extractOperandsFromOperandState o@PredicateRegister {} = do
-    modify (insert o)
-extractOperandsFromOperandState o@UniformRegister {} = do
-    modify (insert o)
-extractOperandsFromOperandState o@Barrier {} = do
-    modify (insert o)
-extractOperandsFromOperandState o@EffectiveAddress {address=addr, offset=offs} = do
-    modify (insert o)
-    extractOperandsFromOperandState addr
-    case offs of
-        Just x -> do extractOperandsFromOperandState x
-        Nothing -> return ()
-extractOperandsFromOperandState o@Immediate {} = do
-    modify (insert o)
-extractOperandsFromOperandState Negative { operand=o } = do
-    extractOperandsFromOperandState o
-extractOperandsFromOperandState Negate { operand=o } = do
-    extractOperandsFromOperandState o
-extractOperandsFromOperandState Tilde { operand=o } = do
-    extractOperandsFromOperandState o
-extractOperandsFromOperandState Absolute { operand=o } = do
-    extractOperandsFromOperandState o
-extractOperandsFromOperandState o@ConstantMemory {arg1=i1, arg2=i2} = do
-    modify (insert o)
-    extractOperandsFromOperandState i1
-    extractOperandsFromOperandState i2
-extractOperandsFromOperandState _ = return ()
-
-extractOperandsFromInstructionState :: Instruction -> State (Set Operand) ()
-extractOperandsFromInstructionState Instruction { predicate=pdc, operands=opnds } = do
-    case pdc of
-        Just x -> extractOperandsFromPredicateState x 
-        Nothing -> return ()
-    forM_ opnds extractOperandsFromOperandState
-
-extractOperandsFromInstruction :: Instruction -> Set Operand
-extractOperandsFromInstruction i = execState (extractOperandsFromInstructionState i) Data.Set.empty
 
 extractOperandsFromRow :: Row -> (Set Operand, Set Operand)
 extractOperandsFromRow (InstrRow a b) = (fromMaybe Data.Set.empty (f a), fromMaybe Data.Set.empty (f b))
@@ -415,19 +331,6 @@ listDrawElement _ _ _ (HalfWidthText a b) =
         l = (sum perSourceColumnWidths) + (length perSourceColumnWidths) - 1
 
 
-theMap :: A.AttrMap
-theMap = A.attrMap V.defAttr
-    [ (L.listAttr,            V.white `on` V.black)
-    , (selectedCellAttr,      V.black `on` V.white)
-    , (missingCellAttr,       V.red   `on` V.black)
-    , (loneCellAttr,          V.green `on` V.black)
-    , (annotationCellAttr, V.cyan `on` V.black)
-    , (annotationSelectedCellAttr, V.white `on` V.cyan)
-    , (missingSelectedCellAttr, V.white   `on` V.red)
-    , (loneSelectedCellAttr,          V.white `on` V.green)
-    , (correlatedOperandAttr, (V.yellow `on` V.black) `V.withStyle` V.bold)
-    , (correlatedSelectedOperandAttr, (V.yellow `on` V.white) `V.withStyle` V.bold)
-    ]
 
 sourceCellWidth :: Int
 sourceCellWidth = 50
@@ -469,67 +372,6 @@ renderRow :: (Either (Maybe RowData, Maybe RowData) (Int, Int, Int, Int)) -> Row
 renderRow (Left (a, b)) = InstrRow a b
 renderRow (Right (lb, le, rb, re)) = HiddenLinesRow lb le rb re
 
-getInstExec :: RowData -> Integer
-getInstExec (_, (_, m)) = read . fromJust . Data.Map.lookup "Instructions Executed" $ m
-
-rowToBeKept :: (Maybe RowData, Maybe RowData) -> Bool
-rowToBeKept (Just a, Just b) = frac <= 0.95 || frac >= 1.05
-    where
-        iExA = (getInstExec a)
-        iExB = (getInstExec b)
-        frac = ((fromInteger iExA) :: Float) / ((fromInteger iExB) :: Float)
-rowToBeKept (Just a, Nothing) = (getInstExec a) > 0
-rowToBeKept (Nothing, Just a) = (getInstExec a) > 0
-rowToBeKept (Nothing, Nothing) = error "Invalid state"
-
-compressRows :: Integer -> [(Maybe RowData, Maybe RowData)] -> [Either (Maybe RowData, Maybe RowData) (Int, Int, Int, Int)]
-compressRows m q = go True q Data.Sequence.empty
-    where
-        toSubrange (Empty) = (0, 0)
-        toSubrange (h:<|Empty) = 
-            ( fromInteger . fst . fromJust $ h
-            , fromInteger . fst . fromJust $ h
-            )
-        toSubrange (h:<|(_:|>t)) =
-            ( fromInteger . fst . fromJust $ h
-            , fromInteger . fst . fromJust $ t
-            )
-        toRange xs = (lb, le, rb, re)
-            where
-                (ls, rs) = Data.Functor.unzip xs
-                fls = Data.Sequence.filter isJust ls
-                frs = Data.Sequence.filter isJust rs
-                (lb, le) = toSubrange fls
-                (rb, re) = toSubrange frs
-        go f [] c
-            | Data.Sequence.null c = []
-            | otherwise =
-                (map Left . toList $ cpre) ++ 
-                (if (length cpost > 1) then [Right (toRange cpost)] else (map Left . toList $ cpost))
-            where
-                (cpre, cpost) = Data.Sequence.splitAt (if f then 0 else fromInteger m) c
-        go f (x:xs) c
-            | Data.Sequence.null c = case rowToBeKept x of
-                False -> go f xs (Data.Sequence.singleton x)
-                True -> (Left x):(go False xs Data.Sequence.empty)
-            | otherwise = case rowToBeKept x of
-                False -> go f xs (c |> x)
-                True -> 
-                    (map Left . toList $ cpre) ++ 
-                    (if midLen > 1 then [Right . toRange $ cmid] else (map Left . toList $ cmid)) ++
-                    (map Left . toList $ cpost) ++
-                    [Left x] ++
-                    (go False xs Data.Sequence.empty)
-            where
-                (cbuff, cpost) = Data.Sequence.splitAt ((\i -> i - (fromInteger m)) . length $ c) c
-                (cpre, cmid) = Data.Sequence.splitAt (if f then 0 else fromInteger m) cbuff
-                midLen = toInteger . length $ cmid
-
-
-noCompressRows :: [(Maybe RowData, Maybe RowData)] -> [Either (Maybe RowData, Maybe RowData) (Int, Int, Int, Int)]
-noCompressRows = map Left
-
-
 startTui :: String -> String -> [(Maybe RowData, Maybe RowData)] -> IO ()
 startTui f1 f2 is = void $ M.defaultMain theApp initialState
   where
@@ -537,7 +379,7 @@ startTui f1 f2 is = void $ M.defaultMain theApp initialState
             , M.appChooseCursor = M.showFirstCursor
             , M.appHandleEvent = appEvent
             , M.appStartEvent = return ()
-            , M.appAttrMap = const theMap
+            , M.appAttrMap = const attributeMap
             }
     compressedRows = compressRows 2 is
     initialRows = map renderRow compressedRows

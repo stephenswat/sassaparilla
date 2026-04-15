@@ -9,6 +9,7 @@ dependencies:
   - containers
   - bytestring
   - Diff
+  - extra
   - parsec
   - text
   - brick
