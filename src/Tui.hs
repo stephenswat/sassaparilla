@@ -267,10 +267,13 @@ launchGotoBuffer :: Bool -> T.EventM () AppState ()
 launchGotoBuffer right = do
     list <- use tabularList
     buff <- use gotoBuffer
-    let asInt = (read buff) :: Int
-    case L.listFindFirst (matchesRowNumber right asInt) list of
-        Just (x, _) -> tabularList %= (L.listMoveTo x)
-        Nothing -> return ()
+
+    if Data.List.null buff then do
+        return ()
+    else do
+        case L.listFindFirst (matchesRowNumber right (read buff)) list of
+            Just (x, _) -> tabularList %= (L.listMoveTo x)
+            Nothing -> return ()
 
 
 toggleHideRows :: T.EventM () AppState ()
@@ -455,7 +458,7 @@ renderInstr _ Nothing = str (" ")
 
 renderProfileData :: String -> Integer -> Bool -> Maybe RowData -> String
 renderProfileData n t r (Just (_, (_, m)))
-    | r = printf "%.2f%%" (100.0 * ((fromInteger raw) / (fromInteger t)) :: Float)
+    | r && raw > 0 = printf "%.2f%%" (100.0 * ((fromInteger raw) / (fromInteger t)) :: Float)
     | raw > 0 = show raw
     | otherwise = " "
     where
